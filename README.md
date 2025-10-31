@@ -69,6 +69,7 @@ This will generate plots showing:
 - Belief uncertainty evolution
 - Action selection for target reaching
 
+![Plots showing the control of a 1D system with Active Inference](difai/example/minimal_example_control.png)
 
 ## Core Components
 
