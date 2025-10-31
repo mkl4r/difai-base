@@ -1,4 +1,4 @@
-# [DIFAI: Desinging Interaction Freedom via Active Inference](https://difai-project.org/)
+# [DIFAI: Designing Interaction Freedom via Active Inference](https://difai-project.org/)
 
 A JAX-based implementation of Active Inference for continuous control and state estimation, enabling efficient Bayesian learning and decision-making in uncertain environments.
 
