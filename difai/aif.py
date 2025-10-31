@@ -128,19 +128,13 @@ class AIF_Agent:
     
     def set_params(self, 
                a_lims=None, n_plans=None, horizon=None, multistep=None, n_samples_o=None, 
-               n_steps_o=None, lr_o=None, lr_o_scaling=None, use_info_gain=None, use_observation_preference=None, 
-               use_pragmatic_value=None, scale_pragmatic_value=None, pragmatic_discounting=None, pragmatic_type=None, 
-               dist_norm=None, n_samples_pr=None, select_max_pi=None, n_samples_ig_s=None, n_samples_ig_o=None, 
+               n_steps_o=None, lr_o=None, use_info_gain=None, use_observation_preference=None, 
+               use_pragmatic_value=None, scale_pragmatic_value=None, select_max_pi=None, n_samples_ig_s=None, n_samples_ig_o=None, 
                n_samples_obs_pref_s=None, n_samples_obs_pref_o=None, initial_belief_state=None, 
                initial_belief_sys=None, initial_belief_noise=None, n_samples_a=None, 
-               n_samples_a_combine=None, n_samples_a_noise_sys=None, use_complete_ukf=None, use_ic=None, 
-               ic_kl_threshold=None, ic_pragmatic_threshold=None, update_noise_sys_interval=None, 
-               n_samples_noise_sys=None, n_steps_noise_sys=None, lr_o_noise_sys=None, 
-               update_noise_sys_complete=None, n_samples_combine_belief=None, use_info_gain_noise_sys=None, 
-               exp_normal_sys_params=None, C_index=None, sys_dependent_C=None, state_dependent_C=None, use_beta_VI=None, 
-               use_state_based_action_prior=None, state_action_matrix=None, action_prior=None, 
-               use_fixed_plans=None, belief_sys_params_box=None, update_action_selection=None, 
-               update_action_selection_lr=None, state_scaling=None, standardise_state=None, reaction_time=None):
+               n_samples_a_combine=None, n_samples_a_noise_sys=None, use_complete_ukf=None, 
+               exp_normal_sys_params=None, C_index=None, sys_dependent_C=None, state_dependent_C=None, 
+               action_prior=None, use_fixed_plans=None, state_scaling=None, standardise_state=None, reaction_time=None):
         """
         Sets the parameters of the agent.
         Args:
@@ -150,15 +144,11 @@ class AIF_Agent:
             multistep (int): Control update frequency (same control is applied for multistep environment steps). Default is 1.
             n_samples_o (int): Observation samples for belief update. Default is 100.
             n_steps_o (int): Optimization steps after new observation. Default is 50.
-            lr_o (float/tuple): Learning rate (or min/max if lr_o_scaling is True) of optimization after new observation. Default is 1e-3.
-            lr_o_scaling (bool): Scale learning rate based on uncertainty. Default is False.
+            lr_o (float/tuple): Learning rate of optimization after new observation. Default is 1e-3.
             use_info_gain (bool): Score actions by information gain. Default is True.
             use_observation_preference (bool): Score actions by observation preference. Default is False.
             use_pragmatic_value (bool): Score actions by pragmatic value. Default is True.
             scale_pragmatic_value (float): Scale the pragmatic value. Default is 1.
-            pragmatic_type (str): Decide which pragmatic distribution to use ("normal" or "uniform"). Default is "normal".
-            dist_norm (str): Decide which norm is used to compare distributions ("kl" or "wasserstein" or "sampling"). Default is "kl".
-            n_samples_pr (int): Number of samples used to estimate pragmatic value if dist_norm is "sampling". Default is 1000.
             select_max_pi (bool): Sample plan (False) or select max negative Expected Free Energy (True). Default is True.
             n_samples_ig_s (int): State samples for information gain. Default is 3.
             n_samples_ig_o (int): Observation samples for information gain. Default is 3.
@@ -168,33 +158,16 @@ class AIF_Agent:
             initial_belief_sys (list): Initial belief about the system parameters defined as a list of two arrays [mean, cov]. Default is None.
             initial_belief_action (list): Initial belief about the action defined as a list of two arrays [mean, cov]. Default is None.
             use_observation_belief (bool): If True, the agent builds a belief over the system's observation noise standard deviation; If False, only build a belief over the system's state. Default is True.
-            env_obs_std (float): Assumed standard deviation of the observation obtained from the internal model. Default is None.
-            use_uncertain_dynamic (bool): If True, use uncertain state transition in action update. Default is False.
-            uncertain_dynamic_cov (array): Standard deviation of subsequent states. Default is 0.1*jnp.eye(2).
-            n_samples_uncertain_dyn (int): Number of dynamics samples for each state sample (total samples = n_samples_a * n_samples_uncertain_dyn). Default is 10.
             n_samples_a (int): Number of state samples for action update. Default is 10.
             n_samples_a_combine (int): Number of samples used to combine state beliefs if UKF is not used. Default is 200.
             n_samples_a_noise_sys (int): Number of samples used to estimate noise system parameters. Default is 10.
-            use_dynamics_belief (bool): Add a belief about the system dynamics parameters. Default is False.
-            use_full_cov (bool): Use full covariance (i.e., covariance between states, dynamics, and observation noise). Default is False.
-            use_reduced_cov (bool): Use reduced covariance, i.e., covariance between states and dynamics, but not observation noise. Default is False.
-            use_segmented_cov (bool): Use segmented covariance, i.e., covariance between state variables, covariance between dynamics variables, separated. Default is False.
             use_complete_ukf (bool): Use the unscented Kalman filter for both state and system parameters in action update. Default is False.
-            use_new_complete_update (bool): If True, use new variant of belief update. Default is False.
-            non_negative_indices (list): Decide which of the system dimensions are non-negative. Default is None.
-            use_ic (bool): If True, use Intermittent Planning. Default is False.
-            ic_kl_threshold (float): Replan if KL-divergence between current belief and predicted belief is larger than this value. Default is 100.
-            ic_pragmatic_threshold (float): Replan if pragmatic value of the belief got worse by this value or more in the last update. Default is 10.
             C_index (int): Index of the observation parameter that is used to calculate the pragmatic value. Default is 0.
             sys_dependent_C (tuple): If not None, the mean of the preference distribution is dependent on the system parameters. First entry is the index of the observation/state vector that is affected, second entry is the index of the system parameter that defines the mean of the preference distribution.
             state_dependent_C (tuple): If not None, the mean of the preference distribution is dependent on the state. First entry is the index of the observation/state vector that is affected, second entry is the index of the state that defines the mean of the preference distribution.
-            use_beta_VI (bool): If True, use beta-variational inference. Default is False.
             use_state_based_action_prior (bool): If True, use state-based action prior. Default is False.
             action_prior (list): Prior for sampling possible actions defined as a list of two arrays [mean, cov]. Default is None.
             use_fixed_plans (bool): If True, use fixed plans for action selection. Default is False.
-            belief_sys_params_box (list): Box constraints for the system parameters. Default is None.
-            update_action_selection (bool): If True, update action selection. Default is False.
-            update_action_selection_lr (float): Learning rate for action selection. Default is 1e-1.
             state_scaling (list): Scaling factors for each state dimension. Default is None.
             standardise_state (bool): If True, standardise the state by dividing it by the scaling factors. Default is False.
         """
@@ -204,19 +177,13 @@ class AIF_Agent:
                 self.params[key] = value
 
     def set_params_with_defaults(self, a_lims=None, n_plans=None, horizon=None, multistep=None, n_samples_o=None, 
-               n_steps_o=None, lr_o=None, lr_o_scaling=None, use_info_gain=None, use_observation_preference=None, 
-               use_pragmatic_value=None, scale_pragmatic_value=None, pragmatic_discounting=None, pragmatic_type=None, 
-               dist_norm=None, n_samples_pr=None, select_max_pi=None, n_samples_ig_s=None, n_samples_ig_o=None, 
+               n_steps_o=None, lr_o=None, use_info_gain=None, use_observation_preference=None, 
+               use_pragmatic_value=None, scale_pragmatic_value=None, select_max_pi=None, n_samples_ig_s=None, n_samples_ig_o=None, 
                n_samples_obs_pref_s=None, n_samples_obs_pref_o=None, initial_belief_state=None, 
                initial_belief_sys=None, initial_belief_noise=None, n_samples_a=None, 
-               n_samples_a_combine=None, n_samples_a_noise_sys=None, use_complete_ukf=None, use_ic=None, 
-               ic_kl_threshold=None, ic_pragmatic_threshold=None, update_noise_sys_interval=None, 
-               n_samples_noise_sys=None, n_steps_noise_sys=None, lr_o_noise_sys=None, 
-               update_noise_sys_complete=None, n_samples_combine_belief=None, use_info_gain_noise_sys=None, 
-               exp_normal_sys_params=None, C_index=None, sys_dependent_C=None, state_dependent_C=None, use_beta_VI=None, 
-               use_state_based_action_prior=None, state_action_matrix=None, action_prior=None, 
-               use_fixed_plans=None, belief_sys_params_box=None, update_action_selection=None, 
-               update_action_selection_lr=None, state_scaling=None, standardise_state=None, reaction_time=None):
+               n_samples_a_combine=None, n_samples_a_noise_sys=None, use_complete_ukf=None, 
+               exp_normal_sys_params=None, C_index=None, sys_dependent_C=None, state_dependent_C=None, 
+               action_prior=None, use_fixed_plans=None, state_scaling=None, standardise_state=None, reaction_time=None):
         """
         Sets the parameters of the agent.
         Args:
@@ -226,15 +193,11 @@ class AIF_Agent:
             multistep (int): Control update frequency (same control is applied for multistep environment steps). Default is 1.
             n_samples_o (int): Observation samples for belief update. Default is 100.
             n_steps_o (int): Optimization steps after new observation. Default is 50.
-            lr_o (float/tuple): Learning rate (or min/max if lr_o_scaling is True) of optimization after new observation. Default is 1e-3.
-            lr_o_scaling (bool): Scale learning rate based on uncertainty. Default is False.
+            lr_o (float/tuple): Learning rate of optimization after new observation. Default is 1e-3.
             use_info_gain (bool): Score actions by information gain. Default is True.
             use_observation_preference (bool): Score actions by observation preference. Default is False.
             use_pragmatic_value (bool): Score actions by pragmatic value. Default is True.
             scale_pragmatic_value (float): Scale the pragmatic value. Default is 1.
-            pragmatic_type (str): Decide which pragmatic distribution to use ("normal" or "uniform"). Default is "normal".
-            dist_norm (str): Decide which norm is used to compare distributions ("kl" or "wasserstein" or "sampling"). Default is "kl".
-            n_samples_pr (int): Number of samples used to estimate pragmatic value if dist_norm is "sampling". Default is 1000.
             select_max_pi (bool): Sample plan (False) or select max negative Expected Free Energy (True). Default is True.
             n_samples_ig_s (int): State samples for information gain. Default is 3.
             n_samples_ig_o (int): Observation samples for information gain. Default is 3.
@@ -244,35 +207,18 @@ class AIF_Agent:
             initial_belief_sys (list): Initial belief about the system parameters defined as a list of two arrays [mean, cov]. Default is None.
             initial_belief_action (list): Initial belief about the action defined as a list of two arrays [mean, cov]. Default is None.
             use_observation_belief (bool): If True, the agent builds a belief over the system's observation noise standard deviation; If False, only build a belief over the system's state. Default is True.
-            env_obs_std (float): Assumed standard deviation of the observation obtained from the internal model. Default is None.
-            use_uncertain_dynamic (bool): If True, use uncertain state transition in action update. Default is False.
-            uncertain_dynamic_cov (array): Standard deviation of subsequent states. Default is 0.1*jnp.eye(2).
-            n_samples_uncertain_dyn (int): Number of dynamics samples for each state sample (total samples = n_samples_a * n_samples_uncertain_dyn). Default is 10.
             n_samples_a (int): Number of state samples for action update. Default is 10.
             n_samples_a_combine (int): Number of samples used to combine state beliefs if UKF is not used. Default is 200.
             n_samples_a_noise_sys (int): Number of samples used to estimate noise system parameters. Default is 10.
-            use_dynamics_belief (bool): Add a belief about the system dynamics parameters. Default is False.
-            use_full_cov (bool): Use full covariance (i.e., covariance between states, dynamics, and observation noise). Default is False.
-            use_reduced_cov (bool): Use reduced covariance, i.e., covariance between states and dynamics, but not observation noise. Default is False.
-            use_segmented_cov (bool): Use segmented covariance, i.e., covariance between state variables, covariance between dynamics variables, separated. Default is False.
             use_complete_ukf (bool): Use the unscented Kalman filter for both state and system parameters in action update. Default is False.
-            use_new_complete_update (bool): If True, use new variant of belief update. Default is False.
-            non_negative_indices (list): Decide which of the system dimensions are non-negative. Default is None.
-            use_ic (bool): If True, use Intermittent Planning. Default is False.
-            ic_kl_threshold (float): Replan if KL-divergence between current belief and predicted belief is larger than this value. Default is 100.
-            ic_pragmatic_threshold (float): Replan if pragmatic value of the belief got worse by this value or more in the last update. Default is 10.
             C_index (int): Index of the observation parameter that is used to calculate the pragmatic value. Default is 0.
             sys_dependent_C (tuple): If not None, the mean of the preference distribution is dependent on the system parameters. First entry is the index of the observation/state vector that is affected, second entry is the index of the system parameter that defines the mean of the preference distribution.
             state_dependent_C (tuple): If not None, the mean of the preference distribution is dependent on the state. First entry is the index of the observation/state vector that is affected, second entry is the index of the state that defines the mean of the preference distribution.
-            use_beta_VI (bool): If True, use beta-variational inference. Default is False.
             use_state_based_action_prior (bool): If True, use state-based action prior. Default is False.
             action_prior (list): Prior for sampling possible actions defined as a list of two arrays [mean, cov]. Default is None.
             use_fixed_plans (bool): If True, use fixed plans for action selection. Default is False.
-            belief_sys_params_box (list): Box constraints for the system parameters. Default is None.
-            update_action_selection (bool): If True, update action selection. Default is False.
-            update_action_selection_lr (float): Learning rate for action selection. Default is 1e-1.
-            standardise_state (bool): If True, standardise the state by dividing it by the scaling factors. Default is False.
             state_scaling (list): Scaling factors for each state dimension. Default is None.
+            standardise_state (bool): If True, standardise the state by dividing it by the scaling factors. Default is False.
         """
         self.params.update(load_yaml_file(DEFAULT_CONFIG_PATH))  # Load default parameters
         changed_params = locals()
@@ -344,19 +290,6 @@ class AIF_Agent:
             self.params["initial_belief_sys"] = [jnp.zeros((self.params['dim_dynamics'],)), jnp.eye(self.params['dim_dynamics'])]    
         if self.params["initial_belief_noise"] is None:
             self.params["initial_belief_noise"] = [jnp.zeros((self.params['dim_noise'],)), jnp.eye(self.params['dim_noise'])]
-        
-        if self.params["update_action_selection"]:
-            assert self.params["action_prior"] is not None, "Updating action selection requires an initial action prior"
-            if self.params["update_action_selection"] == "running":
-                # M, S, k
-                self.params["initial_action_selection_prior"] = [jnp.tile(self.params["action_prior"][0], (self.params["horizon"],)),  jnp.tile(jnp.diag(self.params["action_prior"][1]), self.params['horizon']), 1]
-            else:
-                self.params["initial_action_selection_prior"] = [jnp.tile(self.params["action_prior"][0], (self.params["horizon"],)), block_diag(*[self.params["action_prior"][1]]*self.params["horizon"])]
-        else:
-            self.params["initial_action_selection_prior"] = None
-
-        if self.params["pragmatic_discounting"] > 0:
-            assert self.params["pragmatic_discounting"] > 0 and self.params["pragmatic_discounting"] < 1, f'If the Pragmatic Value is discounted, the dicounting factor must be between 0 and 1 (it is {self.params["pragmatic_discounting"]})'
  
         if self.params["use_fixed_plans"]:
             self.params["fixed_plans"] = gen_fixed_plans(self.params["a_lims"], self.params["horizon"], self.params["dim_action"], self.params["n_plans"], uniform=(self.params["use_fixed_plans"]=='uniform'))
@@ -481,11 +414,7 @@ class AIF_Agent:
             a: aplied action with noise
         '''
         a = _apply_control_noise_given_d(a, d)
-        # jaxprint("s {x} a {y} d {z} sys {a}", x=s, y=a, z=d, a=sys)
-        if 'prob_dynamics' in params:
-            noise_realisation = d[params['prob_dynamics'][0]]
-        else:
-            noise_realisation = None
+        noise_realisation = None
         return dynamics_total(s, a, dt, noise_realisation, None, *sys), a #    
 
     @staticmethod
@@ -564,8 +493,7 @@ class AIF_Agent:
         has_motor_noise = 'signal_dependent_noise' in params or 'constant_motor_noise' in params
         exp_normal_sys_params = params['exp_normal_sys_params']
 
-        if not has_motor_noise and not "prob_dynamics" in params:
-            # assert use_complete_ukf, "Systems without motor noise should use complete UKF."
+        if not has_motor_noise:
             # System dynamics
             def sysfn(ssys):
                 s = ssys[:dim_state]
@@ -613,7 +541,6 @@ class AIF_Agent:
                 cov = block_diag(belief_state[1], jnp.diag(jnp.square(noise_vec))) 
 
                 if use_complete_ukf:
-                    # assert not "constant_motor_noise" in params and not "signal_dependent_noise" in params and not "prob_dynamics" in params, "Complete UKF not implemented for control noise or probabilstic dynamics." # TODO Figure out how to handle control noise (second-order noise) in UKF
                     ## Run the Unscented Kalman Filter
                     ukf_mean, ukf_cov = unscented(mean, cov, fn = sysfn)  
                     ##
@@ -686,11 +613,9 @@ class AIF_Agent:
         n_samples_o =  params["n_samples_o"]
         n_steps_o =  params["n_steps_o"]
         lr_o =  params["lr_o"]
-        lr_o_scaling = params["lr_o_scaling"]
         dim_state = params['dim_state']
         dim_belief = len(belief_state[0]) #params['dim_belief']
         dim_observation = params['dim_observation']
-        use_beta_VI = params["use_beta_VI"]
         tril_indices =  jnp.tril_indices(dim_belief) #params['tril_indices'] 
         prior_mean = belief_state[0]
         prior_cov = belief_state[1]
@@ -716,34 +641,6 @@ class AIF_Agent:
         key, use_key = random.split(key)
         _, sample_observation_var =  sample_obs_noise_params(belief_noise, n_samples_o, use_key)
         
-        if lr_o_scaling is not None:
-            if lr_o_scaling[0] == "obs-based":
-                if params['standardise_state']:
-                # Rescale posterior mean and covariance
-                    prior_mean = prior_mean * state_scaling
-                    prior_cov = prior_cov * cov_scaling
-                    # prior_cov = prior_cov * (state_scaling[:, None] * state_scaling[None, :])
-                ## Calculate log-likelihood of observation under prior (estimate needed change)
-                # Sample states 
-                key, use_key = random.split(key)
-                sample_states = random.multivariate_normal(use_key, prior_mean, prior_cov, shape=(n_samples_o,))
-
-                # Get observations from these states
-                sample_observations = jnp.apply_along_axis(lambda xsys: get_observation_complete(xsys[:dim_state], *xsys[dim_state:]), 1, jnp.hstack([sample_states[:,:dim_state], sample_sys])) # sampled observations
-
-                def nll_single(o_var):
-                    s_o = o_var[:dim_observation]
-                    s_o_var = o_var[dim_observation:]
-                    diff = s_o-o
-                    return 0.5 * (jnp.log(jnp.prod(s_o_var)) + jnp.dot(diff.T, (1/jnp.clip(s_o_var, min=EPS)) * diff) + s_o.shape[0] *  jnp.log(2 * jnp.pi))
-
-                nll = jnp.apply_along_axis(nll_single, 1, jnp.hstack([sample_observations, sample_observation_var]))
-                lr_o = lr_o + lr_o_scaling[1]*nll.mean()
-
-            else:
-                lr_scaling = 1+(jnp.clip(jnp.log(jnp.linalg.det(prior_cov)),lr_o_scaling[0],lr_o_scaling[1])-lr_o_scaling[1])/(lr_o_scaling[1]-lr_o_scaling[0])
-                lr_o =  10**(jnp.log10(lr_o[0]) + (jnp.log10(lr_o[1]) - jnp.log10(lr_o[0])) * lr_scaling)
-
         optimizer = optax.rmsprop(learning_rate=lr_o, eps=EPS)
         # optimizer = optax.adam(learning_rate=lr_o, eps=EPS)
 
@@ -777,11 +674,7 @@ class AIF_Agent:
             nll = jnp.apply_along_axis(nll_single, 1, jnp.hstack([sample_observations.reshape((-1,dim_observation)), sample_observation_var.reshape((-1,dim_observation))]))
             kl = kl_jax(posterior_mean, posterior_cov, prior_mean, prior_cov)
 
-            if use_beta_VI:
-                beta = jnp.clip((2/n_steps_o) * step_i, 0.0, 1.0)
-                loss = nll.mean() + beta*kl
-            else:
-                loss = kl + nll.mean()
+            loss = kl + nll.mean()
 
             return loss
 
@@ -848,11 +741,9 @@ class AIF_Agent:
         dim_observation = params["dim_observation"]
         has_observation_noise = params['has_observation_noise']
         use_info_gain = params['use_info_gain']
-        use_info_gain_noise_sys = params['use_info_gain_noise_sys']
         use_observation_preference = params['use_observation_preference']
         action_prior = params['action_prior']
         use_fixed_plans = params['use_fixed_plans']
-        pragmatic_discounting = params['pragmatic_discounting']
         sys_dependent_C = params['sys_dependent_C']
         state_dependent_C = params['state_dependent_C']
         C_index = params['C_index']
@@ -907,7 +798,7 @@ class AIF_Agent:
                     key, use_key = random.split(key)
                     belief_state_pred, _ = _update_belief_a(belief_state_pred, belief_noise, belief_sys, a=a, key=use_key) 
 
-                if use_info_gain or use_info_gain_noise_sys or use_observation_preference:
+                if use_info_gain or use_observation_preference:
                     if use_observation_preference:
                         # New version for dim_obs >= 1
                         key, use_key = random.split(key)
@@ -940,9 +831,6 @@ class AIF_Agent:
                             pragmatic =  jnp.mean(jnp.apply_along_axis(lambda C_mean: logpdf(oo_pref, C_mean, C[1]).mean(), 1, C_mean_samples))
                         else:
                             pragmatic = logpdf(oo_pref, *C).mean()
-
-                        if pragmatic_discounting > 0:
-                            pragmatic *= pragmatic_discounting**i
                         
                         nefe += scale_pragmatic_value * pragmatic
 
