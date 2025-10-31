@@ -2,8 +2,7 @@ import jax.numpy as jnp
 import jax.scipy as jsp
 from jax import jit, random
 from functools import partial
-from jax.lax import fori_loop, squeeze
-from jax.debug import print as jaxprint
+from jax.lax import fori_loop
 import numpy as np
 import yaml
 
@@ -18,9 +17,6 @@ def sigma_points_jax(mean, cov, lam=3, alpha=1e-3, beta=2):
     Returns a (D, 2D+1) array, where D is the dimensionality of the state space.    
     """
     n = len(mean)    
-    ## EDIT Check diag is positive
-    #cov = cov.at[jnp.diag_indices(n)].set(jnp.clip(jnp.diag(cov), min=EPSILON))
-    ## 
     sqrt_sigma = jnp.linalg.cholesky((n + lam) * cov)   # needs to be Hermetian positive definite
     sigma_points = jnp.vstack([mean, mean + sqrt_sigma, mean - sqrt_sigma])
     return sigma_points.T
@@ -49,16 +45,10 @@ def unscented_jax(mean, cov, fn, kappa=0, alpha=1e-3, beta=2):
     lam = alpha**2 * (n + kappa) - n
     # get the sigma points
     points = sigma_points_jax(mean, cov, lam, alpha, beta)
-    # jaxprint("points {x}", x=points)
     # apply fn
-    axis = 0
-    #jaxprint(points)
     transformed = jnp.apply_along_axis(fn, 0, points)
     # get the weights
     weights_mean, weights_cov = unscented_weights_jax(n, lam, alpha, beta)
-    # jaxprint("weights_mean {x}", x=weights_mean)
-    # jaxprint("weights_cov {x}", x=weights_cov)
-    # jaxprint("transformed {x}", x=transformed)
 
     # re-estimate the mean and covariance using the weighted samples
     mean_hat = jnp.dot(transformed, weights_mean)
@@ -70,26 +60,18 @@ def unscented_jax(mean, cov, fn, kappa=0, alpha=1e-3, beta=2):
         return carry
     cov_hat = fori_loop(0, 2 * n + 1, body_fun, jnp.zeros((n, n)))
 
-    # jaxprint("mean_hat {x}", x=mean_hat)
-    # jaxprint("cov_hat {x}", x=cov_hat)
-
-    ## EDIT Check diag is positive
+    # Ensure diagonal is positive
     cov_hat = cov_hat.at[jnp.diag_indices(n)].set(jnp.clip(jnp.diag(cov_hat), min=EPSILON))
-    ## 
-
-    
 
     return mean_hat, cov_hat
 
 def unscented(mean, cov, fn, kappa=3e6, alpha=1e-3, beta=2):
     return unscented_jax(mean, cov, fn, kappa, alpha, beta)
 
-
 # Jitting
 @partial(jit, static_argnums=(2,3,4,5))
 def unscented_jit(mean, cov, fn, kappa=3e6, alpha=1e-3, beta=2):
     return unscented_jax(mean, cov, fn, kappa, alpha, beta)
-
 
 def softmax_jax(x):
     e = jnp.exp(x - x.max())
@@ -113,146 +95,6 @@ def kl_jax(m1, cov1, m2, cov2):
 def kl_normal_normal(loc1, scale1, loc2, scale2):
     kl = (scale1**2 + (loc1-loc2)**2) / (2*scale2**2) + jnp.log(scale2/scale1) - 0.5 # https://stats.stackexchange.com/questions/7440/kl-divergence-between-two-univariate-gaussians
     return jnp.squeeze(kl)
-
-# From Pytorch 
-def kl_uniform_normal(p_low, p_high, loc, scale):
-    common_term = p_high - p_low
-    t1 = jnp.log((jnp.sqrt(jnp.pi * 2) * scale / common_term))
-    t2 = jnp.pow(common_term, 2) / 12
-    t3 = jnp.pow(((p_high + p_low - 2 * loc) / 2), 2)
-    return t1 + 0.5 * (t2 + t3) / jnp.pow(scale, 2)
-
-def kl_normal_to_sum_of_normals(a, b, mu_Q=0.5, sigma_Q=0.1, num_gaussians=100, sigma=0.01, num_samples=10000, key=None):
-    """
-    Computes the average KL divergence between a Gaussian distribution Q(x) and each Gaussian in a sum that approximates a uniform distribution.
-    
-    Parameters:
-    - a, b: interval of the uniform distribution.
-    - num_gaussians: number of Gaussians used in the sum to approximate the uniform distribution.
-    - sigma: standard deviation of each Gaussian in the sum.
-    - num_samples: number of samples to use for numerical integration.
-    - mu_Q, sigma_Q: mean and standard deviation of the target Gaussian distribution Q(x).
-    
-    Returns:
-    - avg_D_KL: Average KL divergence between Q(x) and each Gaussian P_i(x).
-    """
-    # Sample x values directly from the target Gaussian distribution Q(x)
-    key, use_key = random.split(key)
-    x_samples = mu_Q + sigma_Q * random.normal(key=use_key, shape=(num_samples,))
-    
-    # Define the target Gaussian distribution Q(x) evaluated at the sampled points
-    Q_samples = jsp.stats.norm.pdf(x_samples, mu_Q, sigma_Q)
-    
-    # Compute individual KL divergences between Q(x) and each Gaussian P_i(x)
-    means = jnp.linspace(a, b, num_gaussians)
-    kl_divergences = jnp.zeros((num_gaussians,))
-    
-    for (i,mu) in enumerate(means):
-        P_i_samples = jsp.stats.norm.pdf(x_samples, mu, sigma)
-        epsilon = 1e-10  # small constant to avoid log(0)
-        D_KL_i = jnp.mean(jnp.log((Q_samples + epsilon) / (P_i_samples + epsilon)))
-        kl_divergences = kl_divergences.at[i].set(D_KL_i)
-    
-    # Calculate the average KL divergence
-    avg_D_KL = jnp.mean(kl_divergences)
-    
-    return avg_D_KL
-
-# From scipy, adapted
-def _cdf_distance(p, u_values, v_values):
-    r"""
-    Compute, between two one-dimensional distributions :math:`u` and
-    :math:`v`, whose respective CDFs are :math:`U` and :math:`V`, the
-    statistical distance that is defined as:
-
-    .. math::
-
-        l_p(u, v) = \left( \int_{-\infty}^{+\infty} |U-V|^p \right)^{1/p}
-
-    p is a positive parameter; p = 1 gives the Wasserstein distance, p = 2
-    gives the energy distance.
-
-    Parameters
-    ----------
-    u_values, v_values : array_like
-        Values observed in the (empirical) distribution.
-    u_weights, v_weights : array_like, optional
-        Weight for each value. If unspecified, each value is assigned the same
-        weight.
-        `u_weights` (resp. `v_weights`) must have the same length as
-        `u_values` (resp. `v_values`). If the weight sum differs from 1, it
-        must still be positive and finite so that the weights can be normalized
-        to sum to 1.
-
-    Returns
-    -------
-    distance : float
-        The computed distance between the distributions.
-
-    Notes
-    -----
-    The input distributions can be empirical, therefore coming from samples
-    whose values are effectively inputs of the function, or they can be seen as
-    generalized functions, in which case they are weighted sums of Dirac delta
-    functions located at the specified values.
-
-    References
-    ----------
-    .. [1] Bellemare, Danihelka, Dabney, Mohamed, Lakshminarayanan, Hoyer,
-           Munos "The Cramer Distance as a Solution to Biased Wasserstein
-           Gradients" (2017). :arXiv:`1705.10743`.
-
-    """
-    u_sorter = jnp.argsort(u_values)
-    v_sorter = jnp.argsort(v_values)
-
-    all_values = jnp.concatenate((u_values, v_values))
-    all_values.sort()
-
-    # Compute the differences between pairs of successive values of u and v.
-    deltas = jnp.diff(all_values)
-
-    # Get the respective positions of the values of u and v among the values of
-    # both distributions.
-    u_cdf_indices = u_values[u_sorter].searchsorted(all_values[:-1], 'right')
-    v_cdf_indices = v_values[v_sorter].searchsorted(all_values[:-1], 'right')
-
-    # Calculate the CDFs of u and v using their weights, if specified.
-    u_cdf = u_cdf_indices / u_values.size
-    v_cdf = v_cdf_indices / v_values.size
-
-    # Compute the value of the integral based on the CDFs.
-    # If p = 1 or p = 2, we avoid using np.power, which introduces an overhead
-    # of about 15%.
-    if p == 1:
-        return jnp.sum(jnp.multiply(jnp.abs(u_cdf - v_cdf), deltas))
-    if p == 2:
-        return jnp.sqrt(jnp.sum(jnp.multiply(jnp.square(u_cdf - v_cdf), deltas)))
-    return jnp.power(jnp.sum(jnp.multiply(jnp.power(jnp.abs(u_cdf - v_cdf), p),
-                                       deltas)), 1/p)
-
-
-def wasserstein_distance_uniform_normal(p_low, p_high, loc, scale, n_samples=1000, key=None):
-    key, use_key = random.split(key)
-    u_values = random.uniform(key=use_key, shape=(n_samples,), minval=p_low, maxval=p_high)
-    key, use_key = random.split(key)
-    v_values = loc + scale * random.normal(key=use_key, shape=(n_samples,)) 
-
-    return _cdf_distance(1, u_values, v_values)
-
-def wasserstein_distance_normal_normal(loc1, scale1, loc2, scale2, n_samples=1000, key=None):
-    key, use_key = random.split(key)
-    u_values = loc1 + scale1 * random.normal(key=use_key, shape=(n_samples,))
-    key, use_key = random.split(key)
-    v_values = loc2 + scale2 * random.normal(key=use_key, shape=(n_samples,)) 
-
-    return _cdf_distance(1, u_values, v_values)
-
-def wasserstein_distance(m1, cov1, m2, cov2):
-    cov1sq = jnp.sqrt(cov1)
-    w1 = jnp.linalg.norm(m1-m2)**2 
-    w2 = jnp.linalg.trace(cov1 + cov2 - 2*jnp.sqrt(jnp.matmul(cov1sq, jnp.matmul(cov2, cov1sq)))) # https://danmackinlay.name/notebook/distance_between_gaussians
-    return jnp.sqrt(w1 + w2)
 
 def generate_n_bit_numbers(n):
     """Generate all possible bit numbers for an n-bit number."""
@@ -297,17 +139,9 @@ def gen_fixed_plans(a_lims, horizon, dim_action, num_plans, uniform=True):
     num_actions_per_dim = int(num_plans**(1/dim_action))
     if num_actions_per_dim**dim_action != num_plans:
         print(f"Note on use_fixed_plans: Using {num_actions_per_dim**dim_action} different plans instead of {num_plans} for action selection (num actions per dim: {num_actions_per_dim}).")
-    # base = num_plans_per_dim
-    # if base >10:
-    #     print(f"The number of plans are too large for the used technique. Using base 10 instead of {base}.")
-    #     base = 10
-    # plan_ids = generate_n_base_m_numbers(dim_action, base)
-    print(f"dim_action: {dim_action}, num_actions_per_dim: {num_actions_per_dim}, num_plans: {num_plans}")
+    
     plan_ids = create_plan_ids(dim_action, num_actions_per_dim)
     actions = create_fixed_actions(a_lims, dim_action, num_actions_per_dim, uniform)
-
-    print(plan_ids)
-    print(actions)
 
     for plan_id in plan_ids:
         action = jnp.zeros((dim_action,))
@@ -323,11 +157,9 @@ def _create_plan_ids(plans, dim_action, num_actions_per_dim):
     if dim_action > 0:
         new_plans = []
         for plan in plans:
-            # print(plan)
             for i in range(num_actions_per_dim):
                 plan_i = plan.copy()
                 plan_i.append(i)
-                # print(plan_i)
                 new_plans.append(plan_i)
         return _create_plan_ids(new_plans, dim_action-1, num_actions_per_dim)
     else:
@@ -348,7 +180,6 @@ def create_fixed_actions(a_lims, dim_action, num_actions_per_dim, uniform=True):
     return actions
 
 def refactor_noise_params(noise_params):
-
     noise_id = 0
     dim_noise = 0
     for (noise_name, noise_setting) in noise_params.items():
@@ -374,7 +205,7 @@ def refactor_noise_params(noise_params):
        
     return noise_params, dim_noise
 
- # Load data from a YAML file
+# Load data from a YAML file
 def load_yaml_file(path):
     try:
         with open(path, 'r') as file:

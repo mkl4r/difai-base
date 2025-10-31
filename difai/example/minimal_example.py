@@ -56,18 +56,13 @@ if __name__ == "__main__":
 
     # Create noise parameters
     noise_params = {'observation_std': {'id': jnp.array([0, 1])}}  # Gaussian noise on observation
-    # noise_params = {'observation_std':{'id':jnp.array([0])}}  # Gaussian noise on observation
 
 
     # Create an AIF agent with the generative model and set inital belief and action limits
     agent = AIF_Agent(generative_model, noise_params)
     agent.set_initial_beliefs(initial_belief_state=[x0+0.1, jnp.diag(jnp.array([0.1,0.1])**2)],
                               initial_belief_noise=[jnp.log(jnp.array([0.05, 0.05])), jnp.diag(jnp.array([1.0,1.0]))],
-                            #   initial_belief_noise=[jnp.log(jnp.array([0.05])), jnp.diag(jnp.array([1]))],
-
                               initial_belief_sys= [jnp.array([k]), jnp.diag(jnp.array([1]))])
-                              
-                            #   initial_belief_noise=[jnp.log(jnp.array([1e-5, 1e-5])), jnp.diag(jnp.array([1, 1]))])
     agent.set_params(a_lims= jnp.array([[-10.0], [10.0]]))  # Action limits
 
     print("Agent noise parameters:")

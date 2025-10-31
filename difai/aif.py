@@ -82,7 +82,7 @@ class AIF_Env(object):
         Returns:
             x (array): Resulting state of the system after applying the control input.
         """
-        raise NotImplementedError("_forward_complete_probabilistic method not implemented")
+        raise NotImplementedError("_forward_complete method not implemented")
 
 # Active Inference Agent
 class AIF_Agent:
@@ -117,21 +117,12 @@ class AIF_Agent:
         self.params.update(noise_params)  # Add noise parameters to the agent parameters to identify applied noise
 
         self._get_observation_complete = generative_model._get_observation_complete # function obtaining the deterministic observation, i.e., o = g(s)
-
-        self.current_plan = None
-        self.cur_step = 0
         
-        # Hierarchical AIF
-        self.belief_state_history = []
-        self.action_history = []
-        self.observation_history = []
-    
     def set_params(self, 
                a_lims=None, n_plans=None, horizon=None, multistep=None, n_samples_o=None, 
                n_steps_o=None, lr_o=None, use_info_gain=None, use_observation_preference=None, 
                use_pragmatic_value=None, scale_pragmatic_value=None, select_max_pi=None, n_samples_ig_s=None, n_samples_ig_o=None, 
-               n_samples_obs_pref_s=None, n_samples_obs_pref_o=None, initial_belief_state=None, 
-               initial_belief_sys=None, initial_belief_noise=None, n_samples_a=None, 
+               n_samples_obs_pref_s=None, n_samples_obs_pref_o=None, n_samples_a=None, 
                n_samples_a_combine=None, n_samples_a_noise_sys=None, use_complete_ukf=None, 
                exp_normal_sys_params=None, C_index=None, sys_dependent_C=None, state_dependent_C=None, 
                action_prior=None, use_fixed_plans=None, state_scaling=None, standardise_state=None, reaction_time=None):
@@ -154,9 +145,6 @@ class AIF_Agent:
             n_samples_ig_o (int): Observation samples for information gain. Default is 3.
             n_samples_obs_pref_s (int): State samples for observation preference. Default is 10.
             n_samples_obs_pref_o (int): Observation samples for observation preference. Default is 5.
-            initial_belief_state (list): Initial belief about the state defined as a list of two arrays [mean, cov]. Default is None.
-            initial_belief_sys (list): Initial belief about the system parameters defined as a list of two arrays [mean, cov]. Default is None.
-            initial_belief_action (list): Initial belief about the action defined as a list of two arrays [mean, cov]. Default is None.
             use_observation_belief (bool): If True, the agent builds a belief over the system's observation noise standard deviation; If False, only build a belief over the system's state. Default is True.
             n_samples_a (int): Number of state samples for action update. Default is 10.
             n_samples_a_combine (int): Number of samples used to combine state beliefs if UKF is not used. Default is 200.
@@ -179,8 +167,7 @@ class AIF_Agent:
     def set_params_with_defaults(self, a_lims=None, n_plans=None, horizon=None, multistep=None, n_samples_o=None, 
                n_steps_o=None, lr_o=None, use_info_gain=None, use_observation_preference=None, 
                use_pragmatic_value=None, scale_pragmatic_value=None, select_max_pi=None, n_samples_ig_s=None, n_samples_ig_o=None, 
-               n_samples_obs_pref_s=None, n_samples_obs_pref_o=None, initial_belief_state=None, 
-               initial_belief_sys=None, initial_belief_noise=None, n_samples_a=None, 
+               n_samples_obs_pref_s=None, n_samples_obs_pref_o=None, n_samples_a=None, 
                n_samples_a_combine=None, n_samples_a_noise_sys=None, use_complete_ukf=None, 
                exp_normal_sys_params=None, C_index=None, sys_dependent_C=None, state_dependent_C=None, 
                action_prior=None, use_fixed_plans=None, state_scaling=None, standardise_state=None, reaction_time=None):
@@ -203,9 +190,6 @@ class AIF_Agent:
             n_samples_ig_o (int): Observation samples for information gain. Default is 3.
             n_samples_obs_pref_s (int): State samples for observation preference. Default is 10.
             n_samples_obs_pref_o (int): Observation samples for observation preference. Default is 5.
-            initial_belief_state (list): Initial belief about the state defined as a list of two arrays [mean, cov]. Default is None.
-            initial_belief_sys (list): Initial belief about the system parameters defined as a list of two arrays [mean, cov]. Default is None.
-            initial_belief_action (list): Initial belief about the action defined as a list of two arrays [mean, cov]. Default is None.
             use_observation_belief (bool): If True, the agent builds a belief over the system's observation noise standard deviation; If False, only build a belief over the system's state. Default is True.
             n_samples_a (int): Number of state samples for action update. Default is 10.
             n_samples_a_combine (int): Number of samples used to combine state beliefs if UKF is not used. Default is 200.
@@ -441,8 +425,7 @@ class AIF_Agent:
             obs_indices = params['state_dependent_obs_noise'][1]
             state_indices = params['state_dependent_obs_noise'][2]
             obs += jnp.zeros(dim_observation).at[obs_indices].set(jnp.multiply((EPS+s[state_indices]), d[noise_indices]))
-        return obs 
-####
+        return obs
        
     @staticmethod
     def _sample_obs_noise_params(belief_noise, n_obs_samples, params, key):
@@ -554,7 +537,7 @@ class AIF_Agent:
                     # Apply dynamics
                     ss1 = jnp.apply_along_axis(sysfn, 1, ssys)[:,:dim_state] # Sampled states
                     # New mean
-                    loc_new = jnp.nanmean(ss1, axis=0) #jnp.mean(ss1, axis=0)
+                    loc_new = jnp.nanmean(ss1, axis=0)
 
                     # New cov (calculate cov from mean)
                     cov_new = (ss1-loc_new).T @ (ss1-loc_new) / (n_samples_a-1)
@@ -622,14 +605,10 @@ class AIF_Agent:
 
         # Normalise state
         if params['standardise_state']:
-            # Calculate scaling factors for each state dimension
-            # jaxprint("Prior before scaling {x}. cov {y}", x=prior_mean, y=prior_cov)
             state_scaling = jnp.array(params['state_scaling'])
             prior_mean = prior_mean / state_scaling
             cov_scaling = (state_scaling[:, None] * state_scaling[None, :])
             prior_cov = prior_cov * cov_scaling**(-1)
-
-            # jaxprint("Prior after scaling {x}. cov {y}", x=prior_mean, y=prior_cov)
         # initialise belief to belief before observing
         opt_params = jnp.hstack([prior_mean, jnp.linalg.cholesky(prior_cov)[tril_indices].reshape((-1,))])
 
@@ -642,7 +621,6 @@ class AIF_Agent:
         _, sample_observation_var =  sample_obs_noise_params(belief_noise, n_samples_o, use_key)
         
         optimizer = optax.rmsprop(learning_rate=lr_o, eps=EPS)
-        # optimizer = optax.adam(learning_rate=lr_o, eps=EPS)
 
         opt_state = optimizer.init(opt_params)
     
@@ -879,7 +857,7 @@ class AIF_Agent:
                             keys = random.split(key, num=n_samples_ig+1)
                             key = keys[0]
                             batch_keys = keys[1:]
-                            kl_o = vmap(calc_info_gain, in_axes=(0,0), out_axes=0)(oo, batch_keys) #TODO: This step is slow, can we speed it up?
+                            kl_o = vmap(calc_info_gain, in_axes=(0,0), out_axes=0)(oo, batch_keys)
                             info_gain = jnp.mean(kl_o)
                         nefe += info_gain
 
@@ -890,7 +868,7 @@ class AIF_Agent:
                     nefe += scale_pragmatic_value * pragmatic
 
                 # concatenate expected free energy across future time steps
-                return (key, nefes.at[i].set(nefe), pragmatics.at[i].set(pragmatic), info_gains.at[i].set(info_gain), belief_state_pred) #TODO check if theta_pred or theta_o
+                return (key, nefes.at[i].set(nefe), pragmatics.at[i].set(pragmatic), info_gains.at[i].set(info_gain), belief_state_pred)
                 ## End rollout_step
             
             key, use_key = random.split(key)
@@ -1015,7 +993,6 @@ class AIF_Simulation:
         '''
         key, use_key = random.split(key)
         a_applied = self.apply_control_noise(a, use_key)
-        # key, use_key = random.split(key)
         self.generative_process.step(u=a_applied) # forward generative process
         if debug:
             return self.sample_o(key), self.generative_process.x, a_applied
